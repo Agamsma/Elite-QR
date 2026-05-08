@@ -12,29 +12,33 @@
 <body class="flex flex-col md:flex-row h-screen overflow-hidden text-white relative">
 
     <div id="analytics-modal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-md px-4 hidden transition-opacity">
-        <div class="glass p-6 md:p-8 rounded-[32px] w-full max-w-2xl border border-white/10 shadow-2xl flex flex-col max-h-[80vh]">
+        <div class="glass p-6 md:p-8 rounded-[32px] w-full max-w-2xl border border-white/10 shadow-2xl flex flex-col max-h-[85vh]">
             <div class="flex justify-between items-center mb-6">
                 <div>
                     <h2 class="text-2xl font-bold text-white tracking-tight">Scan <span class="text-purple-500">Analytics</span></h2>
-                    <p id="analytics-title" class="text-xs text-gray-400 mt-1">Loading data...</p>
+                    <p id="analytics-title" class="text-xs text-gray-400 mt-1 truncate max-w-[250px]">Loading...</p>
                 </div>
                 <button id="btn-close-analytics" class="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors">✕</button>
             </div>
             
-            <div class="grid grid-cols-3 gap-4 mb-6">
-                <div class="bg-purple-600/20 border border-purple-500/30 p-4 rounded-2xl text-center">
-                    <p class="text-[10px] uppercase tracking-widest text-purple-400 font-bold mb-1">Total Scans</p>
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="bg-purple-600/20 border border-purple-500/30 p-4 rounded-2xl">
+                    <p class="text-[9px] uppercase tracking-widest text-purple-400 font-bold mb-1">Total Scans</p>
                     <p id="stat-total" class="text-3xl font-black">0</p>
+                </div>
+                <div class="bg-blue-600/20 border border-blue-500/30 p-4 rounded-2xl">
+                    <p class="text-[9px] uppercase tracking-widest text-blue-400 font-bold mb-1">Unique Devices</p>
+                    <p id="stat-devices" class="text-3xl font-black">0</p>
                 </div>
             </div>
 
-            <div class="flex-1 overflow-y-auto hide-scrollbar border border-white/5 rounded-2xl bg-black/20 p-2">
-                <table class="w-full text-left text-xs">
-                    <thead class="text-[10px] text-gray-500 uppercase sticky top-0 bg-[#0f0f12]/90 backdrop-blur-md">
-                        <tr>
-                            <th class="p-3 rounded-tl-xl">Date & Time</th>
-                            <th class="p-3">Device</th>
-                            <th class="p-3 rounded-tr-xl">Location</th>
+            <div class="flex-1 overflow-y-auto hide-scrollbar border border-white/5 rounded-2xl bg-black/20">
+                <table class="w-full text-left text-[11px] md:text-xs">
+                    <thead class="text-[9px] text-gray-500 uppercase sticky top-0 bg-[#0f0f12] z-10">
+                        <tr class="border-b border-white/10">
+                            <th class="p-4">Time (IST)</th>
+                            <th class="p-4">Device</th>
+                            <th class="p-4">Location</th>
                         </tr>
                     </thead>
                     <tbody id="analytics-table-body" class="text-gray-300">
@@ -69,6 +73,9 @@
                     <button id="btn-logout" class="text-[9px] md:text-[10px] text-gray-400 hover:text-white uppercase tracking-tighter transition-colors">Sign Out</button>
                 </div>
             </div>
+            <span class="md:hidden text-[10px] text-gray-500 uppercase tracking-widest flex items-center gap-1">
+                Scroll <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </span>
         </div>
         
         <div class="flex-1 overflow-y-auto p-4 flex flex-col">
