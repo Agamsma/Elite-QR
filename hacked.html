@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Error</title>
+    <style>
+        body { background: #050505; color: #0f0; font-family: 'Courier New', Courier, monospace; padding: 20px; overflow: hidden; font-size: 14px; }
+        .line { margin: 8px 0; }
+        .red { color: #ff3333; font-weight: bold; }
+        .cursor { display: inline-block; width: 8px; height: 15px; background: #0f0; animation: blink 1s step-end infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    </style>
+</head>
+<body>
+    <div id="console"></div>
+    <div class="cursor"></div>
+
+    <script>
+        async function hackSequence() {
+            const con = document.getElementById('console');
+            
+            // Helper to simulate typing delay
+            const printLine = (text, delay, className = '') => {
+                return new Promise(res => {
+                    setTimeout(() => {
+                        con.innerHTML += `<div class="line ${className}">${text}</div>`;
+                        window.scrollTo(0, document.body.scrollHeight);
+                        res();
+                    }, delay);
+                });
+            };
+
+            await printLine("INITIALIZING ROOT EXPLOIT...", 800);
+            await printLine("BYPASSING DEVICE FIREWALL...", 1200);
+            await printLine("[+] ACCESS GRANTED.", 600, 'red');
+            await printLine("GATHERING DEVICE TELEMETRY...", 1000);
+
+            // Fetch actual IP data to make it scary
+            let ip = "192.168.1.XX", loc = "LOCAL NETWORK";
+            try {
+                const res = await fetch('https://ipapi.co/json/');
+                const data = await res.json();
+                if(data.ip) ip = data.ip;
+                if(data.city) loc = `${data.city}, ${data.region}, ${data.country_name}`;
+            } catch(e) { console.log("Tracker blocked"); }
+
+            await printLine(`[!] TARGET IP LOCATED: ${ip}`, 1500, 'red');
+            await printLine(`[!] GPS PINPOINTED: ${loc}`, 1200, 'red');
+            
+            await printLine("DOWNLOADING CONTACTS.DB...", 1500);
+            await printLine("SYNCING PHOTO GALLERY TO EXTERNAL SERVER...", 2000);
+            await printLine("EXTRACTING WHATSAPP BACKUP...", 1800);
+            
+            setTimeout(() => {
+                con.innerHTML += `<div class="line red" style="font-size: 20px; margin-top: 40px; text-align: center;">JUST KIDDING! 🎭<br><br>YOU GOT PRANKED!</div>`;
+            }, 3000);
+        }
+        
+        hackSequence();
+    </script>
+</body>
+</html>
