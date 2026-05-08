@@ -69,7 +69,6 @@ tabBtns.forEach(btn => {
             qrDynamic.disabled = true; // Hub MUST be dynamic
             scarcityPanel.classList.remove('hidden');
         } else {
-            // Other static modes disable dynamic routing by default
             qrDynamic.checked = false;
             qrDynamic.disabled = true;
             scarcityPanel.classList.add('hidden');
@@ -268,8 +267,15 @@ const handleGenerate = async (saveToDatabase = true) => {
 
     } else if (currentMode === 'prank') {
         const fakeTitle = document.getElementById('in-prank-title').value.trim();
+        const prankChoice = document.getElementById('in-prank-type').value;
         if (!fakeTitle) return alert("Provide a fake title!");
-        payloadText = document.getElementById('in-prank-type').value;
+        
+        // HACKER PRANK ROUTING
+        if (prankChoice === 'hacker') {
+            payloadText = `${VERCEL_URL}/hacked.html`;
+        } else {
+            payloadText = prankChoice;
+        }
         displayTitle = `🎭 Bait: ${fakeTitle}`;
 
     } else if (currentMode === 'wifi') {
