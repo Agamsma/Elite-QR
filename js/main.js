@@ -2,7 +2,7 @@ import { auth, db } from './firebase-config.js';
 import { loginWithGoogle, logoutUser, monitorAuthState } from './auth.js';
 import { 
     collection, addDoc, query, where, onSnapshot,
-    serverTimestamp, writeBatch, doc
+    serverTimestamp, writeBatch, doc, getDoc
 } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
 // --- DOM Elements ---
@@ -21,14 +21,15 @@ const qrDynamic = document.getElementById('qr-dynamic');
 const qrcodeDiv = document.getElementById('qrcode');
 const historyList = document.getElementById('history-list');
 
-// Analytics Modal
+// Analytics Elements
 const analyticsModal = document.getElementById('analytics-modal');
 const btnCloseAnalytics = document.getElementById('btn-close-analytics');
 const analyticsTableBody = document.getElementById('analytics-table-body');
 const statTotal = document.getElementById('stat-total');
+const statDevices = document.getElementById('stat-devices');
 const analyticsTitle = document.getElementById('analytics-title');
 
-// Your Live Vercel Link
+// CRITICAL: Ensure this matches your Vercel URL
 const VERCEL_URL = "https://elite-qr.vercel.app";
 
 // --- Tab Management ---
@@ -37,6 +38,7 @@ const inputAreas = document.querySelectorAll('.input-area');
 let currentMode = 'url'; 
 let logoBase64 = null;
 let userHistoryDocs = []; 
+let docsCache = []; 
 
 tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -52,6 +54,7 @@ tabBtns.forEach(btn => {
         currentMode = btn.dataset.mode;
         document.getElementById(`area-${currentMode}`).classList.remove('hidden');
         
+        // Dynamic links only work for standard URLs currently
         if(currentMode !== 'url') {
             qrDynamic.checked = false;
             qrDynamic.disabled = true;
@@ -77,7 +80,7 @@ monitorAuthState((user) => {
     }
 });
 
-// --- Logo ---
+// --- Logo Handling ---
 qrLogoInput.onchange = (e) => {
     const reader = new FileReader();
     reader.onload = (event) => { logoBase64 = event.target.result; };
@@ -108,13 +111,66 @@ const renderQRToUI = (payload, color, isLiquid) => {
     });
 };
 
-// Formatting Helper for Calendar
 const formatDateIcal = (dateString) => {
     if(!dateString) return "";
     return dateString.replace(/[-:]/g, "") + "00Z";
 };
 
-// --- Main Generator ---
+// --- Bulk Studio Engine ---
+const generateBulk = async () => {
+    const fileInput = document.getElementById('in-bulk-file');
+    if(!fileInput.files.length) return alert("Upload a CSV file first!");
+
+    btnGenerate.innerText = "GENERATING ZIP...";
+    btnGenerate.classList.add('animate-pulse');
+
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    
+    reader.onload = async (e) => {
+        const text = e.target.result;
+        const rows = text.split('\n').map(r => r.trim()).filter(r => r);
+        const zip = new JSZip();
+
+        for(let i=0; i<rows.length; i++) {
+            const parts = rows[i].split(',');
+            if(parts.length < 2) continue;
+            const name = parts[0];
+            const url = parts.slice(1).join(',').trim();
+
+            await new Promise(resolve => {
+                const tempDiv = document.createElement('div');
+                new QRCode(tempDiv, {
+                    text: url, width: 800, height: 800,
+                    colorDark: qrColor.value, colorLight: "#ffffff", 
+                    dotScale: qrShape.value === 'liquid' ? 0.4 : 1.0,
+                    timing_scale: qrShape.value === 'liquid' ? 0.4 : 1.0,
+                    correctLevel: QRCode.CorrectLevel.H,
+                    onRenderingEnd: () => {
+                        setTimeout(() => {
+                            const canvas = tempDiv.querySelector('canvas');
+                            const base64Data = canvas.toDataURL("image/png").replace(/^data:image\/(png|jpg);base64,/, "");
+                            zip.file(`${name.trim() || 'QR_'+i}.png`, base64Data, {base64: true});
+                            resolve();
+                        }, 100);
+                    }
+                });
+            });
+        }
+
+        zip.generateAsync({type:"blob"}).then(content => {
+            const link = document.createElement('a');
+            link.download = `EliteQR_Bulk_Studio_${Date.now()}.zip`;
+            link.href = URL.createObjectURL(content);
+            link.click();
+            btnGenerate.innerText = "GENERATE & SYNC";
+            btnGenerate.classList.remove('animate-pulse');
+        });
+    };
+    reader.readAsText(file);
+};
+
+// --- Main Generator Controller ---
 const handleGenerate = async (saveToDatabase = true) => {
     if (currentMode === 'bulk') return generateBulk();
 
@@ -211,13 +267,14 @@ const handleGenerate = async (saveToDatabase = true) => {
 
 btnGenerate.onclick = () => handleGenerate(true); 
 
-// --- History & Analytics Data ---
+// --- Real-time History Data ---
 const fetchHistory = (uid) => {
     const historyQuery = query(collection(db, "qr_history"), where("uid", "==", uid));
 
     onSnapshot(historyQuery, (snapshot) => {
         historyList.innerHTML = ''; 
         userHistoryDocs = []; 
+        docsCache = []; 
         let docsArray = [];
 
         snapshot.forEach(doc => docsArray.push({ id: doc.id, ...doc.data() }));
@@ -233,25 +290,25 @@ const fetchHistory = (uid) => {
 
         docsArray.forEach((data) => {
             userHistoryDocs.push(data.id); 
-            const item = document.createElement('div');
+            docsCache.push(data); // Save for analytics modal
             
+            const item = document.createElement('div');
             const iconMap = { 'url': '🔗', 'vcard': '📇', 'upi': '💸', 'crypto':'🪙', 'event':'📅', 'geo':'📍', 'wifi': '📶', 'email': '✉️' };
             const icon = iconMap[data.type] || '✨';
             
-            // Analytics Button built into history item for dynamic links
-            const dynamicBadge = data.isDynamic 
-                ? `<button onclick="event.stopPropagation(); window.openAnalytics('${data.id}')" class="bg-purple-600 hover:bg-purple-500 text-white text-[9px] px-2 py-1 rounded-md font-bold ml-2 transition-colors shadow">📊 ${data.scans || 0} Scans</button>` 
+            const analyticsBtn = data.isDynamic 
+                ? `<button onclick="event.stopPropagation(); window.openAnalytics('${data.id}')" class="bg-purple-600/20 hover:bg-purple-600 text-purple-400 hover:text-white text-[9px] px-2 py-1 rounded-lg font-bold transition-all border border-purple-500/30">📊 Stats</button>` 
                 : '';
 
             item.className = "p-3 bg-white/5 rounded-xl border border-transparent hover:border-white/10 transition-all cursor-pointer text-xs mb-2 flex items-center justify-between";
             item.innerHTML = `
-                <div class="flex items-center gap-3 truncate flex-1">
-                    <span class="opacity-50">${icon}</span>
-                    <span class="truncate text-gray-300 font-medium">${data.title}</span>
+                <div class="flex items-center gap-3 truncate">
+                    <span class="opacity-40">${icon}</span>
+                    <span class="truncate font-medium text-gray-300">${data.title}</span>
                 </div>
-                <div class="flex items-center gap-2 shrink-0">
-                    ${dynamicBadge}
-                    <div class="w-3 h-3 rounded-full shadow-md" style="background: ${data.color}"></div>
+                <div class="flex items-center gap-2">
+                    ${analyticsBtn}
+                    <div class="w-2.5 h-2.5 rounded-full shadow-sm" style="background: ${data.color}"></div>
                 </div>
             `;
 
@@ -263,9 +320,7 @@ const fetchHistory = (uid) => {
                 const targetTab = document.querySelector(`[data-mode="${data.type}"]`);
                 if(targetTab) targetTab.click();
 
-                // Hydrate based on type
                 if(data.type === 'url') document.getElementById('in-url').value = data.content;
-                // Add minor hydration for visual preview of other fields if desired here
                 
                 let previewPayload = data.content;
                 if (data.isDynamic) previewPayload = `${VERCEL_URL}/scan.html?id=${data.id}`;
@@ -276,49 +331,54 @@ const fetchHistory = (uid) => {
     });
 };
 
-// --- Open Analytics Modal ---
-window.openAnalytics = (docId) => {
-    const docData = docsCache.find(d => d.id === docId); // Note: We need to pull from array or fetch. Let's fetch live.
-    
-    // Quick inline live fetch for security and freshness
-    import("https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js").then(module => {
-        module.getDoc(module.doc(db, "qr_history", docId)).then(docSnap => {
-            if(docSnap.exists()) {
-                const data = docSnap.data();
-                analyticsTitle.innerText = data.title;
-                statTotal.innerText = data.scans || 0;
-                
-                analyticsTableBody.innerHTML = "";
-                if(data.scanLogs && data.scanLogs.length > 0) {
-                    // Reverse to show newest first
-                    [...data.scanLogs].reverse().forEach(log => {
-                        const row = document.createElement('tr');
-                        row.className = "border-b border-white/5";
-                        
-                        const d = new Date(log.timestamp);
-                        const dateStr = `${d.getDate()}/${d.getMonth()+1} - ${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
-                        
-                        row.innerHTML = `
-                            <td class="p-3">${dateStr}</td>
-                            <td class="p-3 text-purple-400 font-medium">${log.device || 'Unknown'}</td>
-                            <td class="p-3">${log.location || 'Unknown'}</td>
-                        `;
-                        analyticsTableBody.appendChild(row);
-                    });
-                } else {
-                    analyticsTableBody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-500 italic">No scans recorded yet.</td></tr>`;
-                }
-                
-                analyticsModal.classList.remove('hidden');
+// --- Analytics Modal Engine ---
+window.openAnalytics = async (docId) => {
+    // Show loading state first
+    analyticsTitle.innerText = "Fetching latest data...";
+    statTotal.innerText = "...";
+    statDevices.innerText = "...";
+    analyticsTableBody.innerHTML = `<tr><td colspan="3" class="p-10 text-center text-purple-400 animate-pulse">Loading analytics...</td></tr>`;
+    analyticsModal.classList.remove('hidden');
+
+    try {
+        const docSnap = await getDoc(doc(db, "qr_history", docId));
+        if(docSnap.exists()) {
+            const data = docSnap.data();
+            
+            analyticsTitle.innerText = data.title;
+            statTotal.innerText = data.scans || 0;
+
+            const logs = data.scanLogs || [];
+            const uniqueDevices = new Set(logs.map(l => l.device)).size;
+            statDevices.innerText = uniqueDevices;
+
+            analyticsTableBody.innerHTML = "";
+            if (logs.length > 0) {
+                [...logs].reverse().forEach(log => {
+                    const row = document.createElement('tr');
+                    row.className = "border-b border-white/5 hover:bg-white/[0.02] transition-colors";
+                    
+                    const date = new Date(log.timestamp);
+                    const timeStr = date.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+                    row.innerHTML = `
+                        <td class="p-4 whitespace-nowrap opacity-60">${timeStr}</td>
+                        <td class="p-4"><span class="px-2 py-1 bg-white/5 rounded-md text-purple-400 font-bold text-[10px]">${log.device || 'Unknown'}</span></td>
+                        <td class="p-4 truncate max-w-[150px]">${log.location || 'Unknown Location'}</td>
+                    `;
+                    analyticsTableBody.appendChild(row);
+                });
+            } else {
+                analyticsTableBody.innerHTML = `<tr><td colspan="3" class="p-10 text-center text-gray-500 italic">No scan data recorded yet.</td></tr>`;
             }
-        });
-    });
+        }
+    } catch(err) {
+        analyticsTitle.innerText = "Error loading data.";
+        analyticsTableBody.innerHTML = `<tr><td colspan="3" class="p-10 text-center text-red-400">Could not fetch analytics from database.</td></tr>`;
+    }
 };
 
 btnCloseAnalytics.onclick = () => analyticsModal.classList.add('hidden');
-
-// --- Bulk Studio Engine (Unchanged but included) ---
-const generateBulk = async () => { /* ... (Same as previous bulk generator) ... */ };
 
 // --- Clear History ---
 btnClearHistory.onclick = async () => {
@@ -343,7 +403,7 @@ btnDownload.onclick = () => {
 btnDownloadSvg.onclick = () => {
     const tempDiv = document.createElement('div');
     const svgOptions = {
-        text: currentMode === 'url' && qrDynamic.checked ? `${VERCEL_URL}/scan.html?id=preview` : document.getElementById('in-url').value,
+        text: currentMode === 'url' && qrDynamic.checked ? `${VERCEL_URL}/scan.html?id=preview` : (document.getElementById('in-url').value || "https://agam.com"),
         width: 1000, height: 1000, colorDark: qrColor.value, colorLight: "transparent",
         dotScale: qrShape.value === 'liquid' ? 0.4 : 1.0, timing_scale: qrShape.value === 'liquid' ? 0.4 : 1.0,
         drawer: 'svg', correctLevel: QRCode.CorrectLevel.H
