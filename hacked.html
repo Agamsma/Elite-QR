@@ -5,22 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>System Error</title>
     <style>
-        body { background: #050505; color: #0f0; font-family: 'Courier New', Courier, monospace; padding: 20px; overflow: hidden; font-size: 14px; }
-        .line { margin: 8px 0; }
+        body { 
+            background: #050505; 
+            color: #00ff00; 
+            font-family: 'Courier New', Courier, monospace; 
+            padding: 20px; 
+            overflow-x: hidden; 
+            font-size: 14px; 
+            line-height: 1.5;
+        }
+        .line { margin: 6px 0; }
         .red { color: #ff3333; font-weight: bold; }
-        .cursor { display: inline-block; width: 8px; height: 15px; background: #0f0; animation: blink 1s step-end infinite; }
+        .yellow { color: #ffcc00; }
+        .cursor { 
+            display: inline-block; 
+            width: 10px; 
+            height: 16px; 
+            background: #0f0; 
+            animation: blink 1s step-end infinite; 
+            vertical-align: middle;
+            margin-left: 5px;
+        }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
     </style>
 </head>
 <body>
     <div id="console"></div>
-    <div class="cursor"></div>
+    <div class="cursor" id="cursor"></div>
 
     <script>
         async function hackSequence() {
             const con = document.getElementById('console');
             
-            // Helper to simulate typing delay
+            // Standard line printer
             const printLine = (text, delay, className = '') => {
                 return new Promise(res => {
                     setTimeout(() => {
@@ -31,29 +48,72 @@
                 });
             };
 
-            await printLine("INITIALIZING ROOT EXPLOIT...", 800);
-            await printLine("BYPASSING DEVICE FIREWALL...", 1200);
-            await printLine("[+] ACCESS GRANTED.", 600, 'red');
+            // Live Percentage Progress Bar Generator
+            const loadWithProgress = (baseText, totalTime) => {
+                return new Promise(resolve => {
+                    // Create a unique ID for this specific line's percentage span
+                    const id = "loader_" + Math.random().toString(36).substr(2, 9);
+                    con.innerHTML += `<div class="line">${baseText} <span id="${id}" class="yellow">0%</span></div>`;
+                    window.scrollTo(0, document.body.scrollHeight);
+                    
+                    let progress = 0;
+                    const el = document.getElementById(id);
+                    const intervalTime = totalTime / 20; // Break the total time into 20 random jumps
+                    
+                    const timer = setInterval(() => {
+                        // Random jump between 2% and 12%
+                        progress += Math.floor(Math.random() * 10) + 2; 
+                        
+                        if (progress >= 100) {
+                            progress = 100;
+                            el.innerText = `100% [COMPLETED]`;
+                            el.className = "red"; // Turn red when done
+                            clearInterval(timer);
+                            setTimeout(resolve, 500); // Brief pause before the next line
+                        } else {
+                            el.innerText = `${progress}%`;
+                        }
+                    }, intervalTime);
+                });
+            };
+
+            // --- THE SEQUENCE ---
+            await printLine("INITIALIZING ROOT EXPLOIT v4.2.1...", 800);
+            await printLine("BYPASSING OS SANDBOX...", 1200);
+            await printLine("[+] KERNEL ACCESS GRANTED.", 600, 'red');
             await printLine("GATHERING DEVICE TELEMETRY...", 1000);
 
-            // Fetch actual IP data to make it scary
-            let ip = "192.168.1.XX", loc = "LOCAL NETWORK";
+            // Fetch actual IP data
+            let ip = "192.168.1.XX", loc = "LOCAL NETWORK", isp = "UNKNOWN ISP";
             try {
                 const res = await fetch('https://ipapi.co/json/');
                 const data = await res.json();
                 if(data.ip) ip = data.ip;
                 if(data.city) loc = `${data.city}, ${data.region}, ${data.country_name}`;
+                if(data.org) isp = data.org;
             } catch(e) { console.log("Tracker blocked"); }
 
             await printLine(`[!] TARGET IP LOCATED: ${ip}`, 1500, 'red');
-            await printLine(`[!] GPS PINPOINTED: ${loc}`, 1200, 'red');
+            await printLine(`[!] GPS PINPOINTED: ${loc}`, 800, 'red');
+            await printLine(`[!] ISP IDENTIFIED: ${isp}`, 800, 'red');
+            await printLine("ESTABLISHING SECURE TUNNEL TO REMOTE SERVER...", 1200);
             
-            await printLine("DOWNLOADING CONTACTS.DB...", 1500);
-            await printLine("SYNCING PHOTO GALLERY TO EXTERNAL SERVER...", 2000);
-            await printLine("EXTRACTING WHATSAPP BACKUP...", 1800);
+            // The Progress Bar Sequences
+            await loadWithProgress("DECRYPTING WHATSAPP MSGSTORE.DB...", 4000);
+            await loadWithProgress("PACKAGING CAMERA ROLL (DCIM) ARCHIVE...", 5000);
+            await loadWithProgress("EXTRACTING SAVED CHROME KEYCHAIN PASSWORDS...", 3500);
+            await loadWithProgress("INTERCEPTING BANKING APP AUTH TOKENS...", 4500);
             
+            // The Finale
+            await printLine("VERIFYING DATA INTEGRITY...", 1500);
+            await printLine("PACKETS RECEIVED: 14.2 GB", 800);
+            await printLine("[!] ALL DATA SUCCESSFULLY UPLOADED TO REMOTE SERVER.", 1500, "red");
+            await printLine("WIPING LOCAL LOGS...", 1000);
+            await printLine("SYSTEM LOCK INITIATED. DO NOT TURN OFF DEVICE.", 2000, "red");
+            
+            // Hide the cursor to make it feel "dead"
             setTimeout(() => {
-                con.innerHTML += `<div class="line red" style="font-size: 20px; margin-top: 40px; text-align: center;">JUST KIDDING! 🎭<br><br>YOU GOT PRANKED!</div>`;
+                document.getElementById('cursor').style.display = 'none';
             }, 3000);
         }
         
