@@ -210,7 +210,7 @@ const handleGenerate = async (saveToDatabase = true) => {
                     });
 
                     // CHANGE THIS TO YOUR LIVE VERCEL URL BEFORE DEPLOYING!
-                    renderPayload = `http://localhost:5500/scan.html?id=${docRef.id}`;
+                    renderPayload = `https://elite-qr.vercel.app/scan.html?id=${docRef.id}`;
                     renderQRToUI(renderPayload, color, isLiquid);
                     return; // Exit here, DB is already saved
                 } else {
@@ -285,7 +285,7 @@ const fetchHistory = (uid) => {
 
                 // If it's dynamic, reconstruct the tracking URL for the preview, otherwise use content
                 let previewPayload = data.content;
-                if (data.isDynamic) previewPayload = `http://localhost:5500/scan.html?id=${data.id}`;
+                if (data.isDynamic) previewPayload = `https://elite-qr.vercel.app/scan.html?id=${data.id}`;
 
                 renderQRToUI(previewPayload, data.color, data.shape === 'liquid');
             };
@@ -321,7 +321,7 @@ btnDownload.onclick = () => {
 btnDownloadSvg.onclick = () => {
     const tempDiv = document.createElement('div');
     const svgOptions = {
-        text: currentMode === 'url' && qrDynamic.checked ? `http://localhost:5500/scan.html?id=preview` : document.getElementById('in-url').value,
+        text: currentMode === 'url' && qrDynamic.checked ? `https://elite-qr.vercel.app/scan.html?id=preview` : document.getElementById('in-url').value,
         width: 1000, height: 1000,
         colorDark: qrColor.value, colorLight: "transparent",
         dotScale: qrShape.value === 'liquid' ? 0.4 : 1.0,
