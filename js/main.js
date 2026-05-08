@@ -1,8 +1,8 @@
 import { auth, db } from './firebase-config.js';
 import { loginWithGoogle, logoutUser, monitorAuthState } from './auth.js';
 import { 
-    collection, addDoc, query, where, onSnapshot,
-    serverTimestamp, writeBatch, doc, getDoc
+    collection, addDoc, query, where, onSnapshot, 
+    serverTimestamp, writeBatch, doc, getDoc 
 } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
 // --- DOM Elements ---
@@ -17,7 +17,9 @@ const btnClearHistory = document.getElementById('btn-clear-history');
 const qrColor = document.getElementById('qr-color');
 const qrLogoInput = document.getElementById('qr-logo');
 const qrShape = document.getElementById('qr-shape');
+const qrFrameText = document.getElementById('qr-frame-text');
 const qrDynamic = document.getElementById('qr-dynamic');
+const scarcityPanel = document.getElementById('scarcity-panel');
 const qrcodeDiv = document.getElementById('qrcode');
 const historyList = document.getElementById('history-list');
 
@@ -29,22 +31,27 @@ const statTotal = document.getElementById('stat-total');
 const statDevices = document.getElementById('stat-devices');
 const analyticsTitle = document.getElementById('analytics-title');
 
-// CRITICAL: Ensure this matches your Vercel URL
 const VERCEL_URL = "https://elite-qr.vercel.app";
-
-// --- Tab Management ---
-const tabBtns = document.querySelectorAll('.tab-btn');
-const inputAreas = document.querySelectorAll('.input-area');
 let currentMode = 'url'; 
 let logoBase64 = null;
 let userHistoryDocs = []; 
 let docsCache = []; 
 
+// Toggle Scarcity UI Visibility
+qrDynamic.addEventListener('change', (e) => {
+    if(e.target.checked || currentMode === 'hub') scarcityPanel.classList.remove('hidden');
+    else scarcityPanel.classList.add('hidden');
+});
+
+// --- Tab Management ---
+const tabBtns = document.querySelectorAll('.tab-btn');
+const inputAreas = document.querySelectorAll('.input-area');
+
 tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-        tabBtns.forEach(b => {
-            b.classList.remove('bg-white/10', 'border-white/10', 'text-white', 'shadow');
-            b.classList.add('bg-black/20', 'border-transparent', 'text-gray-400');
+        tabBtns.forEach(b => { 
+            b.classList.remove('bg-white/10', 'border-white/10', 'text-white', 'shadow'); 
+            b.classList.add('bg-black/20', 'border-transparent', 'text-gray-400'); 
         });
         inputAreas.forEach(area => area.classList.add('hidden'));
 
@@ -54,12 +61,18 @@ tabBtns.forEach(btn => {
         currentMode = btn.dataset.mode;
         document.getElementById(`area-${currentMode}`).classList.remove('hidden');
         
-        // Dynamic links only work for standard URLs currently
-        if(currentMode !== 'url') {
+        // Dynamic & Scarcity Availability Logic
+        if(currentMode === 'url') {
+            qrDynamic.disabled = false;
+        } else if (currentMode === 'hub') {
+            qrDynamic.checked = true;
+            qrDynamic.disabled = true; // Hub MUST be dynamic
+            scarcityPanel.classList.remove('hidden');
+        } else {
+            // Other static modes disable dynamic routing by default
             qrDynamic.checked = false;
             qrDynamic.disabled = true;
-        } else {
-            qrDynamic.disabled = false;
+            scarcityPanel.classList.add('hidden');
         }
     });
 });
@@ -75,8 +88,8 @@ monitorAuthState((user) => {
         document.getElementById('user-photo').style.backgroundImage = `url(${user.photoURL})`;
         document.getElementById('user-photo').style.backgroundSize = 'cover';
         fetchHistory(user.uid);
-    } else {
-        authOverlay.classList.remove('hidden');
+    } else { 
+        authOverlay.classList.remove('hidden'); 
     }
 });
 
@@ -87,36 +100,55 @@ qrLogoInput.onchange = (e) => {
     if(e.target.files[0]) reader.readAsDataURL(e.target.files[0]);
 };
 
-// --- Rendering Engine ---
-const renderQRToUI = (payload, color, isLiquid) => {
-    qrcodeDiv.innerHTML = ""; 
-    qrcodeDiv.classList.remove('qr-animate'); 
-    void qrcodeDiv.offsetWidth; 
-
-    const isMobile = window.innerWidth < 768;
-    const qrSize = isMobile ? 200 : 260; 
-    const logoSize = isMobile ? 50 : 60;
-
-    new QRCode(qrcodeDiv, {
-        text: payload, width: qrSize, height: qrSize,
-        colorDark: color, colorLight: "transparent",
-        dotScale: isLiquid ? 0.4 : 1.0, timing_scale: isLiquid ? 0.4 : 1.0, 
-        logo: logoBase64, logoWidth: logoSize, logoHeight: logoSize,
-        logoBackgroundTransparent: true, correctLevel: QRCode.CorrectLevel.H,
-        onRenderingEnd: () => {
-            qrcodeDiv.classList.add('qr-animate');
-            btnDownload.classList.remove('hidden');
-            btnDownloadSvg.classList.remove('hidden');
-        }
-    });
-};
-
+// --- Helpers ---
 const formatDateIcal = (dateString) => {
     if(!dateString) return "";
     return dateString.replace(/[-:]/g, "") + "00Z";
 };
 
-// --- Bulk Studio Engine ---
+// --- Render Engine ---
+const renderQRToUI = (payload, color, isLiquid, frameTextStr) => {
+    qrcodeDiv.innerHTML = ""; 
+    qrcodeDiv.classList.remove('qr-animate'); 
+    void qrcodeDiv.offsetWidth; 
+
+    const isMobile = window.innerWidth < 768;
+    const qrSize = isMobile ? 200 : 250; 
+    const logoSize = isMobile ? 50 : 60;
+
+    let options = {
+        text: payload, 
+        width: qrSize, 
+        height: qrSize,
+        colorDark: color, 
+        colorLight: "transparent",
+        dotScale: isLiquid ? 0.4 : 1.0, 
+        timing_scale: isLiquid ? 0.4 : 1.0, 
+        logo: logoBase64, 
+        logoWidth: logoSize, 
+        logoHeight: logoSize,
+        logoBackgroundTransparent: true, 
+        correctLevel: QRCode.CorrectLevel.H,
+        onRenderingEnd: () => {
+            qrcodeDiv.classList.add('qr-animate');
+            btnDownload.classList.remove('hidden');
+            btnDownloadSvg.classList.remove('hidden');
+        }
+    };
+
+    if (frameTextStr) {
+        options.title = frameTextStr;
+        options.titleFont = "bold 16px sans-serif";
+        options.titleColor = color;
+        options.titleBackgroundColor = "transparent";
+        options.titleHeight = 40;
+        options.titleTop = 15;
+    }
+
+    new QRCode(qrcodeDiv, options);
+};
+
+// --- Bulk Engine ---
 const generateBulk = async () => {
     const fileInput = document.getElementById('in-bulk-file');
     if(!fileInput.files.length) return alert("Upload a CSV file first!");
@@ -176,11 +208,26 @@ const handleGenerate = async (saveToDatabase = true) => {
 
     let payloadText = "";
     let displayTitle = "";
+    let hubData = null;
 
     if (currentMode === 'url') {
         payloadText = document.getElementById('in-url').value.trim();
         displayTitle = payloadText;
         if (!payloadText) return alert("Please enter a URL.");
+    
+    } else if (currentMode === 'hub') {
+        const name = document.getElementById('in-hub-name').value.trim();
+        if(!name) return alert("Hub Name is required.");
+        displayTitle = `🌳 Hub: ${name}`;
+        hubData = {
+            name: name,
+            bio: document.getElementById('in-hub-bio').value.trim(),
+            links: [
+                { title: document.getElementById('in-hub-l1-title').value.trim(), url: document.getElementById('in-hub-l1-url').value.trim() },
+                { title: document.getElementById('in-hub-l2-title').value.trim(), url: document.getElementById('in-hub-l2-url').value.trim() },
+                { title: document.getElementById('in-hub-l3-title').value.trim(), url: document.getElementById('in-hub-l3-url').value.trim() }
+            ]
+        };
     
     } else if (currentMode === 'vcard') {
         const name = document.getElementById('in-vc-name').value.trim();
@@ -189,7 +236,7 @@ const handleGenerate = async (saveToDatabase = true) => {
         if (!name || !phone) return alert("Name and Phone are required.");
         payloadText = `BEGIN:VCARD\nVERSION:3.0\nFN:${name}\nTEL:${phone}\nEMAIL:${email}\nEND:VCARD`;
         displayTitle = `Contact: ${name}`;
-    
+
     } else if (currentMode === 'upi') {
         const upiId = document.getElementById('in-upi-id').value.trim();
         const name = document.getElementById('in-upi-name').value.trim();
@@ -211,13 +258,19 @@ const handleGenerate = async (saveToDatabase = true) => {
         if(!title || !start) return alert("Title and Start Date required.");
         payloadText = `BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:${title}\nDTSTART:${formatDateIcal(start)}\nDTEND:${formatDateIcal(end)}\nEND:VEVENT\nEND:VCALENDAR`;
         displayTitle = `Event: ${title}`;
-    
+
     } else if (currentMode === 'geo') {
         const lat = document.getElementById('in-geo-lat').value.trim();
         const lng = document.getElementById('in-geo-lng').value.trim();
         if(!lat || !lng) return alert("Coordinates required.");
         payloadText = `geo:${lat},${lng}`;
         displayTitle = `Pin: ${lat}, ${lng}`;
+
+    } else if (currentMode === 'prank') {
+        const fakeTitle = document.getElementById('in-prank-title').value.trim();
+        if (!fakeTitle) return alert("Provide a fake title!");
+        payloadText = document.getElementById('in-prank-type').value;
+        displayTitle = `🎭 Bait: ${fakeTitle}`;
 
     } else if (currentMode === 'wifi') {
         const ssid = document.getElementById('in-wifi-ssid').value.trim();
@@ -237,37 +290,53 @@ const handleGenerate = async (saveToDatabase = true) => {
 
     const color = qrColor.value;
     const isLiquid = qrShape.value === 'liquid';
+    const frameTxt = qrFrameText.value.trim();
+    
+    const maxScans = parseInt(document.getElementById('in-expiry-scans').value) || null;
+    const expiryDate = document.getElementById('in-expiry-date').value || null;
+
     let renderPayload = payloadText;
 
     if (saveToDatabase) {
         const user = auth.currentUser;
         if (user) {
             try {
-                if (qrDynamic.checked && currentMode === 'url') {
-                    const docRef = await addDoc(collection(db, "qr_history"), {
-                        uid: user.uid, type: 'url', content: payloadText, originalUrl: payloadText,
-                        title: displayTitle, color: color, shape: qrShape.value,
-                        isDynamic: true, scans: 0, scanLogs: [], createdAt: serverTimestamp()
-                    });
-                    renderPayload = `${VERCEL_URL}/scan.html?id=${docRef.id}`;
-                    renderQRToUI(renderPayload, color, isLiquid);
+                if (qrDynamic.checked || currentMode === 'hub') {
+                    const dbPayload = {
+                        uid: user.uid, type: currentMode, title: displayTitle, color: color, shape: qrShape.value, frameText: frameTxt,
+                        isDynamic: true, scans: 0, scanLogs: [], createdAt: serverTimestamp(),
+                        maxScans: maxScans, expiryDate: expiryDate
+                    };
+                    
+                    if(currentMode === 'hub') {
+                        dbPayload.hubData = hubData;
+                        const docRef = await addDoc(collection(db, "qr_history"), dbPayload);
+                        renderPayload = `${VERCEL_URL}/hub.html?id=${docRef.id}`;
+                    } else {
+                        dbPayload.content = payloadText;
+                        dbPayload.originalUrl = payloadText;
+                        const docRef = await addDoc(collection(db, "qr_history"), dbPayload);
+                        renderPayload = `${VERCEL_URL}/scan.html?id=${docRef.id}`;
+                    }
+                    
+                    renderQRToUI(renderPayload, color, isLiquid, frameTxt);
                     return; 
                 } else {
+                    // Static Codes
                     await addDoc(collection(db, "qr_history"), {
-                        uid: user.uid, type: currentMode, content: payloadText,
-                        title: displayTitle, color: color, shape: qrShape.value,
-                        isDynamic: false, createdAt: serverTimestamp()
+                        uid: user.uid, type: currentMode, content: payloadText, title: displayTitle, 
+                        color: color, shape: qrShape.value, frameText: frameTxt, isDynamic: false, createdAt: serverTimestamp()
                     });
                 }
             } catch (error) { console.error("Firestore Save Error:", error); }
         }
     }
-    renderQRToUI(renderPayload, color, isLiquid);
+    renderQRToUI(renderPayload, color, isLiquid, frameTxt);
 };
 
 btnGenerate.onclick = () => handleGenerate(true); 
 
-// --- Real-time History Data ---
+// --- Real-time History & Hydration ---
 const fetchHistory = (uid) => {
     const historyQuery = query(collection(db, "qr_history"), where("uid", "==", uid));
 
@@ -278,22 +347,17 @@ const fetchHistory = (uid) => {
         let docsArray = [];
 
         snapshot.forEach(doc => docsArray.push({ id: doc.id, ...doc.data() }));
-
-        docsArray.sort((a, b) => {
-            const timeA = a.createdAt ? a.createdAt.toMillis() : Date.now();
-            const timeB = b.createdAt ? b.createdAt.toMillis() : Date.now();
-            return timeB - timeA; 
-        });
+        docsArray.sort((a, b) => (b.createdAt?.toMillis() || Date.now()) - (a.createdAt?.toMillis() || Date.now()));
 
         if(docsArray.length > 0) btnClearHistory.classList.remove('hidden');
         else btnClearHistory.classList.add('hidden');
 
         docsArray.forEach((data) => {
             userHistoryDocs.push(data.id); 
-            docsCache.push(data); // Save for analytics modal
+            docsCache.push(data);
             
             const item = document.createElement('div');
-            const iconMap = { 'url': '🔗', 'vcard': '📇', 'upi': '💸', 'crypto':'🪙', 'event':'📅', 'geo':'📍', 'wifi': '📶', 'email': '✉️' };
+            const iconMap = { 'url': '🔗', 'hub': '🌳', 'prank': '🎭', 'vcard': '📇', 'upi': '💸', 'crypto':'🪙', 'event':'📅', 'geo':'📍', 'wifi': '📶', 'email': '✉️' };
             const icon = iconMap[data.type] || '✨';
             
             const analyticsBtn = data.isDynamic 
@@ -313,27 +377,41 @@ const fetchHistory = (uid) => {
             `;
 
             item.onclick = () => {
+                // UI Hydration
                 qrColor.value = data.color || "#ffffff";
                 qrShape.value = data.shape || "square";
+                qrFrameText.value = data.frameText || "";
                 qrDynamic.checked = !!data.isDynamic;
+                
+                if(data.maxScans) document.getElementById('in-expiry-scans').value = data.maxScans;
+                if(data.expiryDate) document.getElementById('in-expiry-date').value = data.expiryDate;
                 
                 const targetTab = document.querySelector(`[data-mode="${data.type}"]`);
                 if(targetTab) targetTab.click();
 
+                // Form Field Hydration
                 if(data.type === 'url') document.getElementById('in-url').value = data.content;
+                else if (data.type === 'hub' && data.hubData) {
+                    document.getElementById('in-hub-name').value = data.hubData.name || '';
+                    document.getElementById('in-hub-bio').value = data.hubData.bio || '';
+                } else if (data.type === 'prank') {
+                    document.getElementById('in-prank-title').value = data.title.replace('🎭 Bait: ', '');
+                }
                 
+                // Re-render Code
                 let previewPayload = data.content;
-                if (data.isDynamic) previewPayload = `${VERCEL_URL}/scan.html?id=${data.id}`;
-                renderQRToUI(previewPayload, data.color, data.shape === 'liquid');
+                if (data.type === 'hub') previewPayload = `${VERCEL_URL}/hub.html?id=${data.id}`;
+                else if (data.isDynamic) previewPayload = `${VERCEL_URL}/scan.html?id=${data.id}`;
+                
+                renderQRToUI(previewPayload, data.color, data.shape === 'liquid', data.frameText);
             };
             historyList.appendChild(item);
         });
     });
 };
 
-// --- Analytics Modal Engine ---
+// --- Analytics Engine ---
 window.openAnalytics = async (docId) => {
-    // Show loading state first
     analyticsTitle.innerText = "Fetching latest data...";
     statTotal.innerText = "...";
     statDevices.innerText = "...";
@@ -344,7 +422,6 @@ window.openAnalytics = async (docId) => {
         const docSnap = await getDoc(doc(db, "qr_history", docId));
         if(docSnap.exists()) {
             const data = docSnap.data();
-            
             analyticsTitle.innerText = data.title;
             statTotal.innerText = data.scans || 0;
 
@@ -396,26 +473,47 @@ btnDownload.onclick = () => {
     const canvas = qrcodeDiv.querySelector('canvas');
     if (canvas) {
         const link = document.createElement('a');
-        link.download = `EliteQR-${Date.now()}.png`; link.href = canvas.toDataURL("image/png"); link.click();
+        link.download = `EliteQR-${Date.now()}.png`; 
+        link.href = canvas.toDataURL("image/png"); 
+        link.click();
     }
 };
 
 btnDownloadSvg.onclick = () => {
     const tempDiv = document.createElement('div');
+    
+    // Construct payload for download
+    let payload = document.getElementById('in-url')?.value || "https://agam.com"; // Fallback
+    if(currentMode === 'url' && qrDynamic.checked) payload = `${VERCEL_URL}/scan.html?id=preview`;
+    else if(currentMode === 'hub') payload = `${VERCEL_URL}/hub.html?id=preview`;
+    
     const svgOptions = {
-        text: currentMode === 'url' && qrDynamic.checked ? `${VERCEL_URL}/scan.html?id=preview` : (document.getElementById('in-url').value || "https://agam.com"),
-        width: 1000, height: 1000, colorDark: qrColor.value, colorLight: "transparent",
-        dotScale: qrShape.value === 'liquid' ? 0.4 : 1.0, timing_scale: qrShape.value === 'liquid' ? 0.4 : 1.0,
+        text: payload,
+        width: 1000, height: 1000, 
+        colorDark: qrColor.value, colorLight: "transparent",
+        dotScale: qrShape.value === 'liquid' ? 0.4 : 1.0, 
+        timing_scale: qrShape.value === 'liquid' ? 0.4 : 1.0,
         drawer: 'svg', correctLevel: QRCode.CorrectLevel.H
     };
+
+    if (qrFrameText.value.trim()) {
+        svgOptions.title = qrFrameText.value.trim();
+        svgOptions.titleFont = "bold 60px sans-serif";
+        svgOptions.titleColor = qrColor.value;
+        svgOptions.titleHeight = 150;
+        svgOptions.titleTop = 50;
+    }
+
     new QRCode(tempDiv, svgOptions);
     setTimeout(() => {
         const svgElement = tempDiv.querySelector('svg');
         if (svgElement) {
             const serializer = new XMLSerializer();
             let source = '<?xml version="1.0" standalone="no"?>\r\n' + serializer.serializeToString(svgElement);
-            const link = document.createElement('a'); link.download = `EliteQR-Vector-${Date.now()}.svg`;
-            link.href = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(source); link.click();
+            const link = document.createElement('a'); 
+            link.download = `EliteQR-Vector-${Date.now()}.svg`;
+            link.href = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(source); 
+            link.click();
         }
     }, 500);
 };
