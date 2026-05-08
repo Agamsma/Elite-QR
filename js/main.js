@@ -1,9 +1,12 @@
-import { auth, db } from './firebase-config.js';
+import { auth, db, storage } from './firebase-config.js';
 import { loginWithGoogle, logoutUser, monitorAuthState } from './auth.js';
 import { 
     collection, addDoc, query, where, onSnapshot, 
     serverTimestamp, writeBatch, doc, getDoc 
 } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+import { 
+    ref, uploadBytes, getDownloadURL 
+} from "https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js";
 
 // --- DOM Elements ---
 const authOverlay = document.getElementById('auth-overlay');
@@ -31,6 +34,7 @@ const statTotal = document.getElementById('stat-total');
 const statDevices = document.getElementById('stat-devices');
 const analyticsTitle = document.getElementById('analytics-title');
 
+// CRITICAL: Ensure this matches your Vercel URL
 const VERCEL_URL = "https://elite-qr.vercel.app";
 let currentMode = 'url'; 
 let logoBase64 = null;
@@ -69,6 +73,7 @@ tabBtns.forEach(btn => {
             qrDynamic.disabled = true; // Hub MUST be dynamic
             scarcityPanel.classList.remove('hidden');
         } else {
+            // Other static modes disable dynamic routing by default
             qrDynamic.checked = false;
             qrDynamic.disabled = true;
             scarcityPanel.classList.add('hidden');
@@ -270,13 +275,37 @@ const handleGenerate = async (saveToDatabase = true) => {
         const prankChoice = document.getElementById('in-prank-type').value;
         if (!fakeTitle) return alert("Provide a fake title!");
         
-        // HACKER PRANK ROUTING
         if (prankChoice === 'hacker') {
             payloadText = `${VERCEL_URL}/hacked.html`;
         } else {
             payloadText = prankChoice;
         }
         displayTitle = `🎭 Bait: ${fakeTitle}`;
+
+    } else if (currentMode === 'audio') {
+        const fileInput = document.getElementById('in-audio-file');
+        const file = fileInput.files[0];
+        if (!file) return alert("Please select an audio file to upload!");
+        
+        btnGenerate.innerText = "UPLOADING AUDIO TO CLOUD... ⏳";
+        btnGenerate.disabled = true;
+
+        try {
+            const storageRef = ref(storage, `audio_qrs/${auth.currentUser.uid}/${Date.now()}_${file.name}`);
+            const snapshot = await uploadBytes(storageRef, file);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+            
+            payloadText = downloadURL;
+            displayTitle = `🎵 Audio: ${file.name}`;
+            
+            btnGenerate.innerText = "GENERATE & SYNC";
+            btnGenerate.disabled = false;
+        } catch (error) {
+            console.error(error);
+            btnGenerate.innerText = "GENERATE & SYNC";
+            btnGenerate.disabled = false;
+            return alert("Failed to upload audio. Ensure you are logged in.");
+        }
 
     } else if (currentMode === 'wifi') {
         const ssid = document.getElementById('in-wifi-ssid').value.trim();
@@ -328,7 +357,6 @@ const handleGenerate = async (saveToDatabase = true) => {
                     renderQRToUI(renderPayload, color, isLiquid, frameTxt);
                     return; 
                 } else {
-                    // Static Codes
                     await addDoc(collection(db, "qr_history"), {
                         uid: user.uid, type: currentMode, content: payloadText, title: displayTitle, 
                         color: color, shape: qrShape.value, frameText: frameTxt, isDynamic: false, createdAt: serverTimestamp()
@@ -363,7 +391,7 @@ const fetchHistory = (uid) => {
             docsCache.push(data);
             
             const item = document.createElement('div');
-            const iconMap = { 'url': '🔗', 'hub': '🌳', 'prank': '🎭', 'vcard': '📇', 'upi': '💸', 'crypto':'🪙', 'event':'📅', 'geo':'📍', 'wifi': '📶', 'email': '✉️' };
+            const iconMap = { 'url': '🔗', 'hub': '🌳', 'prank': '🎭', 'audio': '🎵', 'vcard': '📇', 'upi': '💸', 'crypto':'🪙', 'event':'📅', 'geo':'📍', 'wifi': '📶', 'email': '✉️' };
             const icon = iconMap[data.type] || '✨';
             
             const analyticsBtn = data.isDynamic 
@@ -396,12 +424,15 @@ const fetchHistory = (uid) => {
                 if(targetTab) targetTab.click();
 
                 // Form Field Hydration
-                if(data.type === 'url') document.getElementById('in-url').value = data.content;
-                else if (data.type === 'hub' && data.hubData) {
+                if(data.type === 'url') {
+                    document.getElementById('in-url').value = data.content;
+                } else if (data.type === 'hub' && data.hubData) {
                     document.getElementById('in-hub-name').value = data.hubData.name || '';
                     document.getElementById('in-hub-bio').value = data.hubData.bio || '';
                 } else if (data.type === 'prank') {
                     document.getElementById('in-prank-title').value = data.title.replace('🎭 Bait: ', '');
+                } else if (data.type === 'audio') {
+                    document.getElementById('in-audio-file').value = ""; 
                 }
                 
                 // Re-render Code
