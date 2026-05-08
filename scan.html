@@ -1,48 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Routing...</title>
     <style>
-        body {
-            background: #0f0f12;
-            color: #8b5cf6;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            font-family: sans-serif;
-            margin: 0;
-        }
-
-        .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.1);
-            border-left-color: #8b5cf6;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin-bottom: 20px;
-        }
-
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
-        }
+        body { background: #0f0f12; color: #8b5cf6; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; margin: 0; }
+        .spinner { border: 4px solid rgba(255,255,255,0.1); border-left-color: #8b5cf6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getFirestore, doc, getDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, updateDoc, increment, arrayUnion } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
-        // IMPORTANT: Paste your exact Firebase Config here!
+        // PASTE YOUR EXACT FIREBASE CONFIG HERE
         const firebaseConfig = {
             apiKey: "AIzaSyCgjjPJeB-Kh9YPI3fe12CtfFYb_i9swtE",
             authDomain: "elite-qr.firebaseapp.com",
@@ -55,6 +26,14 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
+        // Helper: Detect Device
+        const getDeviceType = () => {
+            const ua = navigator.userAgent;
+            if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return "Tablet";
+            if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) return "Mobile";
+            return "Desktop";
+        };
+
         async function routeUser() {
             const urlParams = new URLSearchParams(window.location.search);
             const qrId = urlParams.get('id');
@@ -64,14 +43,34 @@
                 try {
                     const docSnap = await getDoc(qrRef);
                     if (docSnap.exists()) {
-                        // 1. Increment the scan counter
-                        await updateDoc(qrRef, { scans: increment(1) });
-                        // 2. Redirect securely
+                        
+                        // Fetch Location from IP
+                        let locationStr = "Unknown Location";
+                        try {
+                            const ipRes = await fetch('https://ipapi.co/json/');
+                            const ipData = await ipRes.json();
+                            if(ipData.city && ipData.region) {
+                                locationStr = `${ipData.city}, ${ipData.region}`;
+                            }
+                        } catch(err) { console.log("Location blocked by client."); }
+
+                        const scanData = {
+                            timestamp: new Date().toISOString(),
+                            device: getDeviceType(),
+                            location: locationStr
+                        };
+
+                        // Increment count AND log the scan details
+                        await updateDoc(qrRef, { 
+                            scans: increment(1),
+                            scanLogs: arrayUnion(scanData)
+                        });
+
                         window.location.replace(docSnap.data().originalUrl);
                     } else {
                         document.body.innerHTML = "<h3>QR Link Expired or Not Found.</h3>";
                     }
-                } catch (e) {
+                } catch(e) {
                     document.body.innerHTML = "<h3>Security Error: Cannot route.</h3>";
                 }
             } else if (qrId === 'preview') {
@@ -83,10 +82,8 @@
         routeUser();
     </script>
 </head>
-
 <body>
     <div class="spinner"></div>
     <h2>Securing connection...</h2>
 </body>
-
 </html>
