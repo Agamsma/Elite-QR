@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Routing...</title>
+    <style>
+        body {
+            background: #0f0f12;
+            color: #8b5cf6;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: sans-serif;
+            margin: 0;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left-color: #8b5cf6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getFirestore, doc, getDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+        // IMPORTANT: Paste your exact Firebase Config here!
+        const firebaseConfig = {
+            apiKey: "AIzaSyCgjjPJeB-Kh9YPI3fe12CtfFYb_i9swtE",
+            authDomain: "elite-qr.firebaseapp.com",
+            projectId: "elite-qr",
+            storageBucket: "elite-qr.firebasestorage.app",
+            messagingSenderId: "1054075970480",
+            appId: "1:1054075970480:web:acf61f08b7b6fc7c292c75"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        async function routeUser() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const qrId = urlParams.get('id');
+
+            if (qrId && qrId !== 'preview') {
+                const qrRef = doc(db, "qr_history", qrId);
+                try {
+                    const docSnap = await getDoc(qrRef);
+                    if (docSnap.exists()) {
+                        // 1. Increment the scan counter
+                        await updateDoc(qrRef, { scans: increment(1) });
+                        // 2. Redirect securely
+                        window.location.replace(docSnap.data().originalUrl);
+                    } else {
+                        document.body.innerHTML = "<h3>QR Link Expired or Not Found.</h3>";
+                    }
+                } catch (e) {
+                    document.body.innerHTML = "<h3>Security Error: Cannot route.</h3>";
+                }
+            } else if (qrId === 'preview') {
+                document.body.innerHTML = "<h3>This is a preview link. It will redirect properly once generated via the dashboard.</h3>";
+            } else {
+                document.body.innerHTML = "<h3>Invalid Link.</h3>";
+            }
+        }
+        routeUser();
+    </script>
+</head>
+
+<body>
+    <div class="spinner"></div>
+    <h2>Securing connection...</h2>
+</body>
+
+</html>
