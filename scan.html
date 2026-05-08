@@ -13,7 +13,6 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
         import { getFirestore, doc, getDoc, updateDoc, increment, arrayUnion } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
-        // PASTE YOUR EXACT FIREBASE CONFIG HERE
         const firebaseConfig = {
             apiKey: "AIzaSyCgjjPJeB-Kh9YPI3fe12CtfFYb_i9swtE",
             authDomain: "elite-qr.firebaseapp.com",
@@ -22,11 +21,9 @@
             messagingSenderId: "1054075970480",
             appId: "1:1054075970480:web:acf61f08b7b6fc7c292c75"
         };
-
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // Helper: Detect Device
         const getDeviceType = () => {
             const ua = navigator.userAgent;
             if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return "Tablet";
@@ -43,40 +40,35 @@
                 try {
                     const docSnap = await getDoc(qrRef);
                     if (docSnap.exists()) {
-                        
-                        // Fetch Location from IP
+                        const data = docSnap.data();
+
+                        // THE SCARCITY ENGINE: Expiry Checks
+                        if (data.maxScans && data.scans >= data.maxScans) {
+                            return document.body.innerHTML = "<h3 style='color: #ef4444;'>This QR Code has reached its scan limit and self-destructed.</h3>";
+                        }
+                        if (data.expiryDate && new Date() > new Date(data.expiryDate)) {
+                            return document.body.innerHTML = "<h3 style='color: #ef4444;'>This QR Code has expired.</h3>";
+                        }
+
                         let locationStr = "Unknown Location";
                         try {
                             const ipRes = await fetch('https://ipapi.co/json/');
                             const ipData = await ipRes.json();
-                            if(ipData.city && ipData.region) {
-                                locationStr = `${ipData.city}, ${ipData.region}`;
-                            }
-                        } catch(err) { console.log("Location blocked by client."); }
+                            if(ipData.city && ipData.region) locationStr = `${ipData.city}, ${ipData.region}`;
+                        } catch(err) {}
 
-                        const scanData = {
-                            timestamp: new Date().toISOString(),
-                            device: getDeviceType(),
-                            location: locationStr
-                        };
-
-                        // Increment count AND log the scan details
                         await updateDoc(qrRef, { 
                             scans: increment(1),
-                            scanLogs: arrayUnion(scanData)
+                            scanLogs: arrayUnion({ timestamp: new Date().toISOString(), device: getDeviceType(), location: locationStr })
                         });
 
-                        window.location.replace(docSnap.data().originalUrl);
+                        window.location.replace(data.originalUrl);
                     } else {
-                        document.body.innerHTML = "<h3>QR Link Expired or Not Found.</h3>";
+                        document.body.innerHTML = "<h3>QR Link Not Found.</h3>";
                     }
-                } catch(e) {
-                    document.body.innerHTML = "<h3>Security Error: Cannot route.</h3>";
-                }
+                } catch(e) { document.body.innerHTML = "<h3>Security Error.</h3>"; }
             } else if (qrId === 'preview') {
-                document.body.innerHTML = "<h3>This is a preview link. It will redirect properly once generated via the dashboard.</h3>";
-            } else {
-                document.body.innerHTML = "<h3>Invalid Link.</h3>";
+                document.body.innerHTML = "<h3>Preview mode.</h3>";
             }
         }
         routeUser();
